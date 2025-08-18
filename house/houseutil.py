@@ -1,19 +1,16 @@
-from matplotlib.font_manager import _rebuild
 from matplotlib.pyplot import MultipleLocator
 import numpy as np
 import matplotlib.pyplot as plt
 
-_rebuild()  # reload一下
-
-TOTAL = 1120000  # 房款总额
-Tc = 0.3 * TOTAL  # 首付款
+TOTAL = 2000000  # 房款总额
+Tc = 0.15 * TOTAL  # 首付款
 Td = TOTAL - Tc  # 总贷款
-Tdg = 370000  # 公积金贷款
+Tdg = 1540000  # 公积金贷款
 Tds = Td - Tdg  # 商业贷款
-Rg = 3.1 / 100 / 12  # 公积金月利率
-Rs = 3.7 / 100 / 12  # 商贷月利率
-Rc = 2.6 / 100 / 12  # 三年期存款利率
-N = 120  # 贷款月份
+Rg = 2.6 / 100 / 12  # 公积金月利率
+Rs = 3.05 / 100 / 12  # 商贷月利率
+Rc = 1.75 / 100 / 12  # 三年期存款利率
+N = 360  # 贷款月份
 
 
 def sumC(x):
@@ -69,10 +66,12 @@ def draw():
 
     Cost = cost(x, Sc, Sd)  # 总收益/支出
 
-    write2File(x, Dm, Sc, Sd, Cost)
+    monthRent = TOTAL * 0.01 / 12 # 配售放每年贬值1%，等同租金
 
-    plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
-    plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+    write2File(x, Dm, Sc, Sd, Cost, monthRent)
+
+    plt.rcParams['font.family'] = 'DeJavu Serif'
+    plt.rcParams['font.serif'] = ['Times New Roman']
 
     # 把x轴的刻度间隔设置为1，并存在变量里
     x_major_locator = MultipleLocator(12)
@@ -99,14 +98,14 @@ def draw():
     plt.show()
 
 
-outFile = "买房.csv"
+outFile = "人才房或配售房收益表.csv"
 
 
 def formatPercent(value):
     return '{:.2%}'.format(value)
 
 
-def write2File(x, dm, sc, sd, total):
+def write2File(x, dm, sc, sd, total, monthRent):
     Cm = TOTAL * Rc
     with open(outFile, "a") as file:
         file.seek(0)
@@ -115,13 +114,13 @@ def write2File(x, dm, sc, sd, total):
             Tds) + "\n"
         info2 = "贷款月份:" + str(N) + " 公积金年利率：" + str(formatPercent(Rg * 12)) + " 商贷年利率：" + str(formatPercent(Rs * 12))\
                 + " 三年期存款年利率:" + str(formatPercent(Rc * 12)) + "\n"
-        title = "第N个月,月供,月存款利息,月贷款利息,截止当月存款利息和, 截止当月贷款利息和,总收益/亏损" + "\n"
+        title = "第N个月,月供,月存款利息,月贷款利息,截止当月存款利息和, 截止当月贷款利息和,总收益/亏损,配售房等同租金" + "\n"
         file.write(info + info2 + title)
         for i in x:
             pay = (Td / N) + dm[i]
-            aaa = str(i) + "," + str(pay) + "," + str(Cm) + "," + str(dm[i]) + "," + str(sc[i]) + "," + str(sd[i]) + "," + str(
-                total[i]) + "\n"
-            file.write(aaa)
+            wStr = str(i) + "," + str(pay) + "," + str(Cm) + "," + str(dm[i]) + "," + str(sc[i]) + "," + str(sd[i]) + "," + str(
+                total[i]) + "," + str(monthRent) + "\n"
+            file.write(wStr)
     file.close()
 
 
