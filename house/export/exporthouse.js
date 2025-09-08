@@ -33,9 +33,26 @@
     }
 
     // 生成记录的唯一标识（用于去重）
-    function getRecordUniqueKey(record) {
-        // 将记录的所有字段拼接成一个字符串作为唯一标识
-        return record.join(UNIQUE_DELIMITER);
+    function getRecordUniqueKey(record, headers) {
+        // 查找房源编码字段的索引
+        const houseCodeIndex = headers.findIndex(header => header === '房源编码');
+        
+        if (houseCodeIndex !== -1 && record[houseCodeIndex]) {
+            // 如果找到房源编码字段且该字段有值，提取其中的数字部分作为唯一标识
+            const houseCodeValue = record[houseCodeIndex].trim();
+            // 使用正则表达式提取数字部分
+            const numberMatch = houseCodeValue.match(/\d+/);
+            if (numberMatch) {
+                return numberMatch[0]; // 返回第一个匹配的数字串
+            } else {
+                console.warn(`房源编码字段中未找到数字：${houseCodeValue}`);
+                return houseCodeValue; // 如果没找到数字，返回原值
+            }
+        } else {
+            // 如果没找到房源编码字段或该字段为空，回退到使用所有字段拼接
+            console.warn('未找到房源编码字段或该字段为空，使用全字段拼接作为唯一标识');
+            return record.join(UNIQUE_DELIMITER);
+        }
     }
 
     // 提取单个筛选条件下的所有数据
@@ -156,7 +173,7 @@
         );
 
         const selectedIndices = prompt(
-            `请输入需要提取的选项序号（多个序号用逗号分隔，例如：10,11）\n` +
+            `请输入需要提取的额外选项序号（多个序号用逗号分隔，例如：10,11）\n` +
             filterOptions.map(option => `${option.index + 1}. ${option.label}`).join('\n')
         );
 
@@ -184,6 +201,7 @@
 
         // 存储所有筛选条件下的合并数据
         let combinedData = null;
+        let allRawData = null; // 新增：存储所有原始数据（去重前）
         let totalRecords = 0;
         let duplicateCount = 0;
         // 使用Set存储已存在的记录标识，实现O(1)时间复杂度的去重判断
@@ -223,17 +241,22 @@
                 // 初始化合并数据（添加表头）
                 if (!combinedData) {
                     combinedData = [result.headers];
+                    allRawData = [result.headers]; // 初始化原始数据
                 }
+
+                // 将所有原始数据添加到allRawData中（不去重）
+                allRawData.push(...result.data);
 
                 // 处理当前筛选条件下的数据，进行去重
                 result.data.forEach(record => {
-                    const uniqueKey = getRecordUniqueKey(record);
+                    const uniqueKey = getRecordUniqueKey(record, result.headers);
                     if (!existingRecords.has(uniqueKey)) {
                         // 记录不存在，添加到合并数据
                         combinedData.push(record);
                         existingRecords.add(uniqueKey);
                         totalRecords++;
                     } else {
+                        console.log(`重复的房源编码：${uniqueKey}`);
                         // 记录已存在，计数加1
                         duplicateCount++;
                     }
@@ -249,30 +272,50 @@
             return;
         }
 
-        // 生成CSV内容
-        const csvContent = combinedData.map(row =>
-            row.map(cell => {
-                if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
-                    return `"${cell.replace(/"/g, '""')}"`;
-                }
-                return cell;
-            }).join(',')
-        ).join('\n');
+        // 生成CSV内容的辅助函数
+        function generateCSVContent(data) {
+            return data.map(row =>
+                row.map(cell => {
+                    if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+                        return `"${cell.replace(/"/g, '""')}"`;
+                    }
+                    return cell;
+                }).join(',')
+            ).join('\n');
+        }
 
-        // 创建下载链接
-        const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
-        const url = URL.createObjectURL(blob);
-        const link = doc.createElement('a');
-        link.setAttribute('href', url);
-        link.setAttribute('download', `筛选表格数据_去重后_${new Date().toLocaleDateString()}.csv`);
-        link.style.display = 'none';
-        doc.body.appendChild(link);
-        link.click();
-        doc.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        // 生成去重前的CSV内容
+        const rawCsvContent = generateCSVContent(allRawData);
+        
+        // 生成去重后的CSV内容
+        const deduplicatedCsvContent = generateCSVContent(combinedData);
 
-        console.log(`所有筛选条件数据处理完成，原始总记录${totalRecords + duplicateCount}条，去重后${totalRecords}条，去除重复${duplicateCount}条`);
-        alert(`提取成功！共获取${totalRecords + duplicateCount}条原始数据，去重后保留${totalRecords}条，已合并为一个CSV文件下载`);
+        // 下载去重前的CSV文件
+        const rawBlob = new Blob([rawCsvContent], {type: 'text/csv;charset=utf-8;'});
+        const rawUrl = URL.createObjectURL(rawBlob);
+        const rawLink = doc.createElement('a');
+        rawLink.setAttribute('href', rawUrl);
+        rawLink.setAttribute('download', `筛选表格数据_去重前_${new Date().toLocaleDateString()}.csv`);
+        rawLink.style.display = 'none';
+        doc.body.appendChild(rawLink);
+        rawLink.click();
+        doc.body.removeChild(rawLink);
+        URL.revokeObjectURL(rawUrl);
+
+        // 下载去重后的CSV文件
+        const deduplicatedBlob = new Blob([deduplicatedCsvContent], {type: 'text/csv;charset=utf-8;'});
+        const deduplicatedUrl = URL.createObjectURL(deduplicatedBlob);
+        const deduplicatedLink = doc.createElement('a');
+        deduplicatedLink.setAttribute('href', deduplicatedUrl);
+        deduplicatedLink.setAttribute('download', `筛选表格数据_去重后_${new Date().toLocaleDateString()}.csv`);
+        deduplicatedLink.style.display = 'none';
+        doc.body.appendChild(deduplicatedLink);
+        deduplicatedLink.click();
+        doc.body.removeChild(deduplicatedLink);
+        URL.revokeObjectURL(deduplicatedUrl);
+
+        console.log(`所有筛选条件数据处理完成，原始总记录${allRawData.length - 1}条，去重后${totalRecords}条，去除重复${duplicateCount}条`);
+        alert(`提取成功！共获取${allRawData.length - 1}条原始数据，去重后保留${totalRecords}条，已生成两份CSV文件下载`);
     } catch (error) {
         console.error('提取过程出错：', error);
         alert(`提取失败：${error.message}\n请查看控制台了解详细信息`);
