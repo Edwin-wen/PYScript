@@ -1,3 +1,6 @@
+// 使用说明：用chrome打开https://fdc.zjj.sz.gov.cn/szfdcscjy/#/house/house，
+// F12打开源代码，添加代码段，复制该文件，点下方运行，然后按照提示输入需要提取的户型选项序号和额外选项序号，
+// 点击确定后，会自动提取数据并下载为CSV文件。
 (async function () {
     // 配置常量 - 可根据需要调整
     const ELEMENT_TIMEOUT = 15000; // 元素加载超时时间(毫秒)
